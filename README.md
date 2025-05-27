@@ -1,3 +1,6 @@
+// 162024019 - Senna Almalia
+// 17 Mei 2025
+// Program Reservasi Cafe - CLI (Admin dan User)
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -5,17 +8,10 @@
 #include <time.h>
 
 typedef struct {
-    char username[20];
-    char password[20];
-    char kategori[20];
-    char kadaluarsa[20];
-} Akun;
-
-typedef struct {
     char kategori[20];
     char nama[50];
     char tanggal[15];
-    char slot[5];
+    char slot[2];
     int jumlah;
     int total;
 } Reservasi;
@@ -31,46 +27,47 @@ void reservasi(char *username);
 void lihatReservasi();
 void cariReservasi();
 void hapusReservasi();
-void lihatReservasiUser(char *username);
 int hitungBiaya(char kategori[], int jumlah);
+int cekMasaAktif(char *tanggal);
 void cetakStruk(char *username, Reservasi rsv);
+int cekSlotPenuh(char *tanggal, char *slot);
+
+int cekSlotPenuh(char *tanggal, char *slot) {
+    FILE *fp = fopen("reservasi.txt", "r");
+    if (fp == NULL) return 0;
+
+    Reservasi rsv;
+    int totalOrang = 0;
+    while (fscanf(fp, "%s %s %s %s %d %d",
+                  rsv.kategori, rsv.nama, rsv.tanggal, rsv.slot,
+                  &rsv.jumlah, &rsv.total) != EOF) {
+        if (strcmp(rsv.tanggal, tanggal) == 0 && strcmp(rsv.slot, slot) == 0) {
+            totalOrang += rsv.jumlah;
+        }
+    }
+    fclose(fp);
+
+    return totalOrang >= 5;
+}
 
 int main() {
-    
     int role = 0;
     char username[20];
     tampilkanHeader();
     login(&role, username);
-        if (role != 0) {
-        printf("\nBerhasil login sebagai %s\n", username);
+    if (role != 0) {
+        printf("\nBerhasil login sebagai %s\n", role == 1 ? "Admin" : "User");
         tampilkanMenu(role, username);
     }
-
-
     return 0;
 }
 
 void tampilkanHeader() {
     printf("\n\n");
-    printf("\t\t\t============================================\n");
-    printf("\t\t\t           Selamat Datang di LDR\n");
-    printf("\t\t\t      Layanan Duduk Reservasi Room 19\n");
-    printf("\t\t\t============================================\n");
-}
-
-int cekMasaAktif(char kadaluarsa[]) {
-    struct tm tgl;
-    time_t now = time(NULL);
-    time_t expired;
-
-    sscanf("%d-%d-%d", &tgl.tm_mday, &tgl.tm_mon, &tgl.tm_year);
-    tgl.tm_mon -= 1;
-    tgl.tm_year -= 1900;
-    tgl.tm_hour = 0; tgl.tm_min = 0; tgl.tm_sec = 0;
-
-    expired = mktime(&tgl);
-
-    return difftime(expired, now) >= 0; // True jika belum kedaluwarsa
+    printf("============================================\n");
+    printf("       Selamat Datang di LDR\n");
+    printf("  Layanan Duduk Reservasi Room 19\n");
+    printf("============================================\n");
 }
 
 void login(int *role, char *username) {
@@ -78,42 +75,37 @@ void login(int *role, char *username) {
     char user[20], pass[20];
     int valid = 0;
 
-    printf("\t\t\t1. Login\n\t\t\t2. Registrasi User Baru\n");
-    printf("====================================================");
-    printf("\n\t\t\tPilihan: ");
+    printf("\n1. Login\n2. Registrasi User Baru\nPilihan: ");
     scanf("%d", &pilih);
     if (pilih == 2) {
         registrasiUser();
     }
 
     while (!valid) {
-        printf("\t\t\t=======================================\n");
-        printf("\t\t\t                Login LDR              \n");
-        printf("\t\t\t=======================================\n");
-        printf("\t\t\tUsername: ");
+        printf("\nLogin\nUsername: ");
         scanf("%s", user);
-        printf("\t\t\tPassword: ");
+        printf("Password: ");
         scanf("%s", pass);
 
         if (strcmp(user, ADMIN) == 0 && strcmp(pass, APASS) == 0) {
-            *role = 1; // admin
-            strcpy(username, "Admin"); // SIMPAN sebagai Admin
+            *role = 1;
             valid = 1;
         } else {
-        FILE *fp = fopen("akun.txt", "r");
-        if(fp == NULL) {
-            printf("File akun.txt tidak ditemukan. Silakan registrasi terlebih dahulu.\n");
-            exit(1);
-        }
-        Akun a;
-        while (fscanf(fp, "%s %s %s %s", a.username, a.password, a.kategori, a.kadaluarsa) != EOF) {
-            if (strcmp(user, a.username) == 0 && strcmp(pass, a.password) == 0) {
-                *role = 2; // user
-                strcpy(username, a.username);
-                valid = 1;
-                break;
+            FILE *fp = fopen("akun.txt", "r");
+            if (fp == NULL) {
+                printf("File akun.txt tidak ditemukan.\n");
+                exit(1);
             }
-         }
+
+            char uname[20], pw[20], kategori[20], nim[20], jurusan[30], kampus[30], masa_aktif[15];
+            while (fscanf(fp, "%s %s %s %s %s %s %s", uname, pw, kategori, nim, jurusan, kampus, masa_aktif) != EOF) {
+                if (strcmp(user, uname) == 0 && strcmp(pass, pw) == 0) {
+                    *role = 2;
+                    strcpy(username, uname);
+                    valid = 1;
+                    break;
+                }
+            }
             fclose(fp);
             if (!valid) printf("Login gagal, coba lagi.\n");
         }
@@ -122,40 +114,49 @@ void login(int *role, char *username) {
 
 void registrasiUser() {
     FILE *fp = fopen("akun.txt", "a");
-    Akun a;
-    printf("\n\t\t\t========== Registrasi User Baru ==========\n");
-    printf("\t\t\tUsername: ");
-    scanf("%s", a.username);
-    printf("\t\t\tPassword: ");
-    scanf("%s", a.password);
-    
-    // Tambahan input untuk kategori user
-    printf("\t\t\tKategori (Umum/Mahasiswa/Pelajar): ");
-    scanf("%s", a.kategori);
-    
-    // Jika bukan Umum, minta input masa aktif
-    if (strcmp(a.kategori, "Mahasiswa") == 0 || strcmp(a.kategori, "Pelajar") == 0 || strcmp(a.kategori, "mahasiswa") == 0 || strcmp(a.kategori, "Pelajar") == 0) {
-        printf("\t\t\tMasukkan tanggal masa aktif (dd-mm-yyyy): ");
-        scanf("%s", a.kadaluarsa);
-    } else {
-        strcpy(a.kadaluarsa, "00-00-0000"); // Default untuk Umum
+    if (fp == NULL) {
+        printf("Gagal membuka file akun.txt\n");
+        return;
     }
-    
-    fprintf(fp, "%s %s %s %s\n", a.username, a.password, a.kategori, a.kadaluarsa);
+
+    char username[20], password[20], kategori[10];
+    char nim[20] = "-", jurusan[30] = "-", kampus[30] = "-", masa_aktif[15] = "-";
+
+    printf("\n=== Registrasi User Baru ===\n");
+    printf("Username: ");
+    scanf("%s", username);
+    printf("Password: ");
+    scanf("%s", password);
+
+    printf("Kategori (Umum/Pelajar): ");
+    scanf("%s", kategori);
+
+    if (strcmp(kategori, "Pelajar") == 0) {
+        printf("NIM: ");
+        scanf("%s", nim);
+        printf("Jurusan: ");
+        scanf("%s", jurusan);
+        printf("Asal Kampus: ");
+        scanf("%s", kampus);
+        printf("Masa Aktif Kartu Pelajar (YYYY-MM-DD): ");
+        scanf("%s", masa_aktif);
+    }
+
+    fprintf(fp, "%s %s %s %s %s %s %s\n", username, password, kategori, nim, jurusan, kampus, masa_aktif);
     fclose(fp);
-    printf("\t\t\tRegistrasi berhasil! Silakan login.\n");
+    printf("Registrasi berhasil! Silakan login.\n");
 }
 
 void tampilkanMenu(int role, char *username) {
     int pilih;
     do {
         if (role == 1) {
-            printf("\n\t\t\t========== Menu Admin ==========\n");
-            printf("\t\t\t1. Lihat semua reservasi\n");
-            printf("\t\t\t2. Cari reservasi\n");
-            printf("\t\t\t3. Hapus reservasi\n");
-            printf("\t\t\t4. Keluar\n");
-            printf("\t\t\tPilihan: ");
+            printf("\n=== Menu Admin ===\n");
+            printf("1. Lihat semua reservasi\n");
+            printf("2. Cari reservasi\n");
+            printf("3. Hapus reservasi\n");
+            printf("4. Keluar\n");
+            printf("Pilihan: ");
             scanf("%d", &pilih);
 
             switch(pilih) {
@@ -166,115 +167,112 @@ void tampilkanMenu(int role, char *username) {
                 default: printf("Pilihan tidak valid!\n");
             }
         } else if (role == 2) {
-            printf("\n\t\t\t========== Menu User ==========\n");
-            printf("\t\t\t1. Lakukan Reservasi\n");
-            printf("\t\t\t2. Lihat Reservasi Saya\n");
-            printf("\t\t\t3. Keluar\n");
-            printf("\t\t\tPilihan: ");
+            printf("\n=== Menu User ===\n");
+            printf("1. Lakukan Reservasi\n");
+            printf("2. Keluar\n");
+            printf("Pilihan: ");
             scanf("%d", &pilih);
 
             switch(pilih) {
                 case 1: reservasi(username); break;
-                case 2: lihatReservasiUser(username); break;
-                case 3: exit(0);
-                default: printf("\t\t\tPilihan tidak valid!\n");
+                case 2: exit(0);
+                default: printf("Pilihan tidak valid!\n");
             }
         }
     } while (1);
+}
+
+int cekMasaAktif(char *tanggal) {
+    int tahun, bulan, hari;
+    sscanf(tanggal, "%d-%d-%d", &tahun, &bulan, &hari);
+
+    time_t now = time(NULL);
+    struct tm *tm_now = localtime(&now);
+
+    if ((tahun > (tm_now->tm_year + 1900)) ||
+        (tahun == (tm_now->tm_year + 1900) && bulan > (tm_now->tm_mon + 1)) ||
+        (tahun == (tm_now->tm_year + 1900) && bulan == (tm_now->tm_mon + 1) && hari >= tm_now->tm_mday)) {
+        return 1;
+    } else {
+        return 0;
+    }
 }
 
 void reservasi(char *username) {
     Reservasi rsv;
     char bayar;
     FILE *fp = fopen("reservasi.txt", "a");
-    FILE *akunFile = fopen("akun.txt", "r");
-    
-    if(fp == NULL || akunFile == NULL) {
-        printf("Gagal membuka file!\n");
+    if (fp == NULL) {
+        printf("Gagal membuka file reservasi.txt\n");
         return;
     }
-    
-    printf("\n\t\t\t========== Form Reservasi ==========\n");
-    
-    // Cari data user untuk mendapatkan kategori asli
-    Akun a;
-    int found = 0;
-    while (fscanf(akunFile, "%s %s %s %s", a.username, a.password, a.kategori, a.kadaluarsa) != EOF) {
-        if (strcmp(a.username, username) == 0) {
-            found = 1;
+
+    FILE *fa = fopen("akun.txt", "r");
+    if (fa == NULL) {
+        printf("File akun.txt tidak ditemukan!\n");
+        fclose(fp);
+        return;
+    }
+
+    char uname[20], pass[20], kategori[20], nim[20], jurusan[30], kampus[30], masa_aktif[15];
+    int ditemukan = 0;
+
+    while (fscanf(fa, "%s %s %s %s %s %s %s", uname, pass, kategori, nim, jurusan, kampus, masa_aktif) != EOF) {
+        if (strcmp(uname, username) == 0) {
+            strcpy(rsv.kategori, kategori);
+            ditemukan = 1;
             break;
         }
     }
-    fclose(akunFile);
-    
-    if (!found) {
-        printf("\t\t\tData user tidak ditemukan!\n");
+    fclose(fa);
+
+    if (!ditemukan) {
+        printf("Data user tidak ditemukan!\n");
+        fclose(fp);
         return;
     }
-    
-    // Jika user terdaftar sebagai Mahasiswa/Pelajar, cek masa aktif
-    if (strcmp(a.kategori, "Umum") == 0 || strcmp(a.kadaluarsa, "00-00-0000") == 0) {
-        strcpy(rsv.kategori, "Umum");
-    } else {
-        if (!cekMasaAktif(a.kadaluarsa)) {
-            printf("\t\t\tMasa aktif kategori %s telah kedaluwarsa (berlaku hingga %s).\n", a.kategori, a.kadaluarsa);
-            printf("\t\t\tReservasi akan dilakukan sebagai Umum.\n");
-            strcpy(rsv.kategori, "Umum");
-    } else {
-        printf("\t\t\tAnda terdaftar sebagai %s (berlaku hingga %s)\n", a.kategori, a.kadaluarsa);
-        strcpy(rsv.kategori, a.kategori);
-    }
+
+    if (strcmp(rsv.kategori, "Pelajar") == 0 && !cekMasaAktif(masa_aktif)) {
+    printf("Masa aktif kartu pelajar sudah habis, akan dihitung sebagai kategori Umum.\n");
+    strcpy(rsv.kategori, "Umum");
 }
-    
+
+
     strcpy(rsv.nama, username);
-    
-    printf("\t\t\tTanggal (dd-mm-yyyy): ");
+    printf("\n=== Form Reservasi ===\n");
+    printf("Tanggal (dd-mm-yyyy): ");
     scanf("%s", rsv.tanggal);
-    printf("\t\t\tSlot (A/B/C): ");
+    printf("Slot (A/B/C): ");
     scanf("%s", rsv.slot);
-    printf("\t\t\tJumlah orang: ");
+
+    // Cek slot penuh sebelum input jumlah orang
+    if (cekSlotPenuh(rsv.tanggal, rsv.slot)) {
+        printf("Maaf, slot %s pada tanggal %s sudah penuh.\n", rsv.slot, rsv.tanggal);
+        fclose(fp);
+        return;
+    }
+
+    printf("Jumlah orang: ");
     scanf("%d", &rsv.jumlah);
 
     rsv.total = hitungBiaya(rsv.kategori, rsv.jumlah);
-    printf("\t\t\tTotal pembayaran: Rp%d\n", rsv.total);
-
-    printf("\t\t\tApakah Anda sudah melakukan pembayaran? (y/t): ");
+    printf("Kategori Anda: %s\n", rsv.kategori);
+    printf("Total pembayaran: Rp%d\n", rsv.total);
+    printf("Apakah Anda sudah melakukan pembayaran? (y/t): ");
     scanf(" %c", &bayar);
 
     if (bayar == 'y' || bayar == 'Y') {
-        fprintf(fp, "%s \"%s\" %s %s %d %d\n", rsv.kategori, rsv.nama, rsv.tanggal, rsv.slot, rsv.jumlah, rsv.total);
+        fprintf(fp, "%s %s %s %s %d %d\n", rsv.kategori, rsv.nama, rsv.tanggal, rsv.slot, rsv.jumlah, rsv.total);
         cetakStruk(username, rsv);
-        printf("\n\t\t\tReservasi berhasil!\n");
+        printf("\nReservasi berhasil!\n");
     } else {
-        printf("\t\t\tReservasi dibatalkan karena belum melakukan pembayaran.\n");
+        printf("Reservasi dibatalkan.\n");
     }
 
     fclose(fp);
 }
 
 void cetakStruk(char *username, Reservasi rsv) {
-    char filename[50];
-    sprintf(filename, "struk_%s.txt", username);
-    FILE *fs = fopen(filename, "w");
-    if(fs == NULL) {
-        printf("Gagal membuat file struk\n");
-        return;
-    }
-    fprintf(fs, "============================================\n");
-    fprintf(fs, "               STRUK RESERVASI\n");
-    fprintf(fs, "============================================\n");
-    fprintf(fs, "Nama      : %s\n", rsv.nama);
-    fprintf(fs, "Kategori  : %s\n", rsv.kategori);
-    fprintf(fs, "Tanggal   : %s\n", rsv.tanggal);
-    fprintf(fs, "Slot      : %s\n", rsv.slot);
-    fprintf(fs, "Jumlah    : %d orang\n", rsv.jumlah);
-    fprintf(fs, "Total     : Rp%d\n", rsv.total);
-    fprintf(fs, "============================================\n");
-    fprintf(fs, "Silakan tunjukkan struk ini kepada kasir\n");
-    fprintf(fs, "Terima kasih telah menggunakan layanan kami!\n");
-    fclose(fs);
-
-    // Tampilkan juga ke layar
     printf("\n============================================\n");
     printf("               STRUK RESERVASI\n");
     printf("============================================\n");
@@ -290,178 +288,86 @@ void cetakStruk(char *username, Reservasi rsv) {
 }
 
 int hitungBiaya(char kategori[], int jumlah) {
-    int harga;
-    if (strcmp(kategori, "Umum") == 0) harga = 35000;
-    else if (strcmp(kategori, "Pelajar") == 0) harga = 25000;
-    else harga = 25000;
+    int harga = (strcmp(kategori, "Umum") == 0) ? 35000 : 25000;
     return jumlah * harga;
 }
 
 void lihatReservasi() {
     FILE *fp = fopen("reservasi.txt", "r");
-    Reservasi rsv;
-    if(fp == NULL) {
-        printf("File reservasi.txt tidak ditemukan.\n");
-        return;
-    }
-
-    printf("\n\t\t\t========== Daftar Reservasi ==========\n");
-    printf("\t\t\t%-10s | %-20s | %-12s | %-10s | %-6s | %-10s\n", 
-           "\t\t\tKategori", "Nama", "Tanggal", "Slot", "Jumlah", "Total");
-    printf("\t\t\t--------------------------------------------------------------------------\n");
-
-    while (fscanf(fp, "%s \"%[^\"]\" %s %s %d %d", 
-                  rsv.kategori, rsv.nama, rsv.tanggal, rsv.slot, &rsv.jumlah, &rsv.total) != EOF) {
-        printf("%-10s | %-20s | %-12s | %-10s | %-6d | %-10d\n", 
-               rsv.kategori, rsv.nama, rsv.tanggal, rsv.slot, rsv.jumlah, rsv.total);
-    }
-
-    fclose(fp);
-}
-
-
-void cariReservasi() {
-    int pilih;
-    char key_nama[50], key_tanggal[20];
-    FILE *fp = fopen("reservasi.txt", "r");
-    Reservasi rsv;
-    int found = 0;
-
     if (fp == NULL) {
-        printf("File reservasi.txt tidak ditemukan.\n");
+        printf("Data reservasi belum ada.\n");
         return;
     }
-
-    printf("Cari berdasarkan:\n1. Nama\n2. Tanggal\nPilihan Anda: ");
-    scanf("%d", &pilih);
-
-    printf("\n%-10s | %-20s | %-12s | %-10s | %-6s | %-10s\n",
-           "Kategori", "Nama", "Tanggal", "Slot", "Jumlah", "Total");
-    printf("--------------------------------------------------------------------------\n");
-
-    switch (pilih) {
-        case 1:
-            printf("Input nama: ");
-            scanf(" %49[^\n]", key_nama);
-            while (fscanf(fp, "%s \"%[^\"]\" %s %s %d %d",
-                          rsv.kategori, rsv.nama, rsv.tanggal, rsv.slot,
-                          &rsv.jumlah, &rsv.total) != EOF) {
-                if (strcmp(rsv.nama, key_nama) == 0) {
-                    printf("%-10s | %-20s | %-12s | %-10s | %-6d | %-10d\n",
-                           rsv.kategori, rsv.nama, rsv.tanggal, rsv.slot, rsv.jumlah, rsv.total);
-                    found = 1;
-                }
-            }
-            break;
-
-        case 2:
-            printf("Input tanggal (dd-mm-yyyy): ");
-            scanf(" %19s", key_tanggal);
-            while (fscanf(fp, "%s \"%[^\"]\" %s %s %d %d",
-                          rsv.kategori, rsv.nama, rsv.tanggal, rsv.slot,
-                          &rsv.jumlah, &rsv.total) != EOF) {
-                if (strcmp(rsv.tanggal, key_tanggal) == 0) {
-                    printf("%-10s | %-20s | %-12s | %-10s | %-6d | %-10d\n",
-                           rsv.kategori, rsv.nama, rsv.tanggal, rsv.slot, rsv.jumlah, rsv.total);
-                    found = 1;
-                }
-            }
-            break;
-
-        default:
-            printf("Pilihan tidak valid.\n");
-            fclose(fp);
-            return;
-    }
-
-    if (!found) {
-        printf("Data tidak ditemukan.\n");
-    }
-
-    fclose(fp);
-}
-
-
-void hapusReservasi() {
-    FILE *fp = fopen("reservasi.txt", "r");
-    if (fp == NULL) {
-        printf("File reservasi.txt tidak ditemukan.\n");
-        return;
-    }
-
-    FILE *temp = fopen("temp.txt", "w");
-    if (temp == NULL) {
-        printf("Gagal membuat file temporary.\n");
-        fclose(fp);
-        return;
-    }
-
     Reservasi rsv;
-    char nama[50], tanggal[15];
-    int found = 0;
-
-    printf("\t\t\tMasukkan nama: ");
-    scanf(" %49[^\n]", nama);  // Membersihkan newline dan membaca hingga 49 karakter
-    printf("\t\t\tMasukkan tanggal (dd-mm-yyyy): ");
-    scanf(" %14s", tanggal);   // Membaca tanggal
-
-    while (fscanf(fp, "%s \"%[^\"]\" %s %s %d %d",
-                 rsv.kategori, rsv.nama, rsv.tanggal, rsv.slot,
-                 &rsv.jumlah, &rsv.total) != EOF) {
-        if (strcmp(rsv.nama, nama) == 0 && strcmp(rsv.tanggal, tanggal) == 0) {
-            found = 1;
-        } else {
-            fprintf(temp, "%s \"%s\" %s %s %d %d\n",
-                    rsv.kategori, rsv.nama, rsv.tanggal, rsv.slot,
-                    rsv.jumlah, rsv.total);
-        }
-    }
-
-    fclose(fp);
-    fclose(temp);
-
-    if (found) {
-        remove("reservasi.txt");
-        rename("temp.txt", "reservasi.txt");
-        printf("Data berhasil dihapus.\n");
-    } else {
-        remove("temp.txt");
-        printf("Data tidak ditemukan.\n");
-    }
-
-    // Membersihkan buffer input
-    while (getchar() != '\n');
-}
-
-void lihatReservasiUser(char *username) {
-    FILE *fp = fopen("reservasi.txt", "r");
-    Reservasi rsv;
-    int found = 0;
-
-    if (fp == NULL) {
-        printf("File reservasi.txt tidak ditemukan.\n");
-        return;
-    }
-
-    printf("\n\t\t\t\t========== Reservasi Anda ==========\n");
-    printf("\t\t\t==========================================================\n");
-    printf("\t\t\t%-10s | %-12s | %-10s | %-6s | %-10s\n",
-           "\t\t\tKategori", "Tanggal", "Slot", "Jumlah", "Total");
-    printf("\t\t\t==========================================================\n");
-
-    while (fscanf(fp, "%s \"%[^\"]\" %s %s %d %d",
+    printf("\n=== Daftar Reservasi ===\n");
+    printf("Kategori | Nama | Tanggal | Slot | Jumlah | Total\n");
+    printf("-------------------------------------------------\n");
+    while (fscanf(fp, "%s %s %s %s %d %d",
                   rsv.kategori, rsv.nama, rsv.tanggal, rsv.slot,
                   &rsv.jumlah, &rsv.total) != EOF) {
-        if (strcmp(rsv.nama, username) == 0) {
-            printf("%-10s | %-12s | %-10s | %-6d | %-10d\n",
-                   rsv.kategori, rsv.tanggal, rsv.slot, rsv.jumlah, rsv.total);
-            found = 1;
+        printf("%-8s | %-10s | %-10s | %-4s | %-6d | Rp%-8d\n",
+               rsv.kategori, rsv.nama, rsv.tanggal, rsv.slot, rsv.jumlah, rsv.total);
+    }
+    fclose(fp);
+}
+
+void cariReservasi() {
+    char cari[50];
+    int ketemu = 0;
+    FILE *fp = fopen("reservasi.txt", "r");
+    if (fp == NULL) {
+        printf("Data reservasi belum ada.\n");
+        return;
+    }
+    printf("Masukkan nama untuk cari reservasi: ");
+    scanf("%s", cari);
+    Reservasi rsv;
+    while (fscanf(fp, "%s %s %s %s %d %d",
+                  rsv.kategori, rsv.nama, rsv.tanggal, rsv.slot,
+                  &rsv.jumlah, &rsv.total) != EOF) {
+        if (strcmp(rsv.nama, cari) == 0) {
+            printf("\nDitemukan reservasi:\n");
+            printf("Kategori: %s\nNama: %s\nTanggal: %s\nSlot: %s\nJumlah: %d\nTotal: Rp%d\n",
+                   rsv.kategori, rsv.nama, rsv.tanggal, rsv.slot, rsv.jumlah, rsv.total);
+            ketemu = 1;
         }
     }
-
-    if (!found) {
-        printf("Belum ada reservasi yang dilakukan.\n");
+    if (!ketemu) {
+        printf("Reservasi dengan nama %s tidak ditemukan.\n", cari);
     }
-
     fclose(fp);
+}
+
+void hapusReservasi() {
+    char nama[50];
+    int ketemu = 0;
+    FILE *fp = fopen("reservasi.txt", "r");
+    FILE *temp = fopen("temp.txt", "w");
+    if (fp == NULL) {
+        printf("Data reservasi belum ada.\n");
+        return;
+    }
+    printf("Masukkan nama reservasi yang ingin dihapus: ");
+    scanf("%s", nama);
+    Reservasi rsv;
+    while (fscanf(fp, "%s %s %s %s %d %d",
+                  rsv.kategori, rsv.nama, rsv.tanggal, rsv.slot,
+                  &rsv.jumlah, &rsv.total) != EOF) {
+        if (strcmp(rsv.nama, nama) != 0) {
+            fprintf(temp, "%s %s %s %s %d %d\n",
+                    rsv.kategori, rsv.nama, rsv.tanggal, rsv.slot,
+                    rsv.jumlah, rsv.total);
+        } else {
+            ketemu = 1;
+        }
+    }
+    fclose(fp);
+    fclose(temp);
+    remove("reservasi.txt");
+    rename("temp.txt", "reservasi.txt");
+    if (ketemu) {
+        printf("Reservasi dengan nama %s berhasil dihapus.\n", nama);
+    } else {
+        printf("Reservasi dengan nama %s tidak ditemukan.\n", nama);
+    }
 }
